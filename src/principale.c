@@ -1,12 +1,13 @@
 #include "affianca.h"
 #include "avvio.h"
+#include "../risorse/versione.h"
 #include <windowsx.h>
 #include <shellapi.h>
 #include <limits.h>
 #include <stdlib.h>
 
 enum { ID_ICONA = 1, ID_SCORCIATOIA = 1, TIMER_MOUSE = 1, TIMER_SPOSTA,
-       TIMER_ICONA, MSG_ICONA = WM_APP + 1, APRI = 10, AVVIO, GUIDA, COPYRIGHT_INFO, ESCI };
+       TIMER_ICONA, MSG_ICONA = WM_APP + 1, APRI = 10, AVVIO, GUIDA, INFO_APP, ESCI };
 enum { MAX_SCHEDE = 6, LARGHEZZA = 276, MARGINE_X = 8, MARGINE_Y = 15,
        LARG_SCHEDA = 123, ALT_SCHEDA = 80, PASSO_X = 137, PASSO_Y = 95 };
 
@@ -426,7 +427,7 @@ static void comandi_tray(void)
                 tasto_attivo ? L"Open layouts\tCtrl+Alt+Z" : L"Open layouts");
     AppendMenuW(menu, MF_STRING | (avvio_attivo() ? MF_CHECKED : 0), AVVIO, L"Start with Windows");
     AppendMenuW(menu, MF_STRING, GUIDA, L"Quick guide");
-    AppendMenuW(menu, MF_STRING, COPYRIGHT_INFO, L"Copyright");
+    AppendMenuW(menu, MF_STRING, INFO_APP, L"About SnapTile");
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(menu, MF_STRING, ESCI, L"Exit");
     POINT p;
@@ -455,8 +456,9 @@ static void comandi_tray(void)
             L"With three or more eligible windows on this monitor, the top row shows two suggested groups with app icons.\n\n"
             L"Press Ctrl+Alt+Z to open layouts. Use the arrow keys or Tab to select a zone, Enter to apply, or Esc to close.",
             L"SnapTile", MB_OK | MB_ICONINFORMATION);
-    } else if (comando == COPYRIGHT_INFO) {
-        MessageBoxW(NULL, L"SnapTile\nCopyright \u00A9 2026 Raffaele Mele", L"SnapTile - Copyright", MB_OK);
+    } else if (comando == INFO_APP) {
+        MessageBoxW(NULL, L"SnapTile " SNAPTILE_VERSIONE L"\n\nCopyright \u00A9 2026 Raffaele Mele",
+                    L"About SnapTile", MB_OK | MB_ICONINFORMATION);
     } else if (comando == ESCI) DestroyWindow(servizio);
 }
 
@@ -523,8 +525,8 @@ static int esegui(HINSTANCE istanza)
     if (!servizio || !pannello) { CloseHandle(unica); return 1; }
     msg_taskbar = RegisterWindowMessageW(L"TaskbarCreated");
     icona = (NOTIFYICONDATAW){.cbSize = sizeof(icona), .hWnd = servizio, .uID = ID_ICONA,
-             .uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE, .uCallbackMessage = MSG_ICONA, .hIcon = grafica};
-    lstrcpyW(icona.szTip, L"SnapTile - Arrange windows");
+             .uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE, .uCallbackMessage = MSG_ICONA, .hIcon = grafica,
+             .szTip = L"SnapTile " SNAPTILE_VERSIONE L" - Arrange windows"};
     registra_icona();
     tasto_attivo = RegisterHotKey(servizio, ID_SCORCIATOIA, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'Z');
     if (!tasto_attivo) avviso(L"Ctrl+Alt+Z is already in use. Hover over Maximize or use the notification area icon.");

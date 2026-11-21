@@ -1,9 +1,10 @@
 #include <windows.h>
+#include "versione.h"
 101 ICON "affianca.ico"
 1 RT_MANIFEST "affianca.manifest"
 1 VERSIONINFO
-FILEVERSION 1,2,0,0
-PRODUCTVERSION 1,2,0,0
+FILEVERSION SNAPTILE_VERSIONE_FILE
+PRODUCTVERSION SNAPTILE_VERSIONE_FILE
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -12,12 +13,12 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "FileDescription", "Window tiling for Windows 10"
-            VALUE "FileVersion", "1.2.0"
+            VALUE "FileVersion", SNAPTILE_VERSIONE
             VALUE "InternalName", "SnapTile"
             VALUE "OriginalFilename", "SnapTile.exe"
             VALUE "LegalCopyright", "Copyright (C) 2026 Raffaele Mele"
             VALUE "ProductName", "SnapTile"
-            VALUE "ProductVersion", "1.2.0"
+            VALUE "ProductVersion", SNAPTILE_VERSIONE
         END
     END
     BLOCK "VarFileInfo"
