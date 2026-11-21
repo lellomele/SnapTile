@@ -13,7 +13,7 @@ if not exist build mkdir build
 if not exist build goto :errore
 "%GCCBIN%\windres.exe" -I risorse -i risorse\affianca.rc -O coff -o build\risorse.o
 if errorlevel 1 goto :errore
-"%GCCBIN%\gcc.exe" -std=c11 -Os -Wall -Wextra -Wpedantic -D_WIN32_WINNT=0x0A00 -DUNICODE -D_UNICODE -ffunction-sections -fdata-sections -mwindows -nostartfiles -static-libgcc -Wl,-e,avvia_affianca,--gc-sections -s -o build\SnapTile.exe src\principale.c src\geometria.c src\finestre.c src\avvio.c build\risorse.o -luser32 -lgdi32 -lshell32 -ladvapi32 -ldwmapi -lshcore
+"%GCCBIN%\gcc.exe" -std=c11 -Os -Wall -Wextra -Wpedantic -D_WIN32_WINNT=0x0A00 -DUNICODE -D_UNICODE -ffunction-sections -fdata-sections -mwindows -nostartfiles -static-libgcc -Wl,-e,avvia_affianca,--gc-sections -s -o build\SnapTile.exe src\principale.c src\geometria.c src\finestre.c src\accessibilita.c src\avvio.c build\risorse.o -luser32 -lgdi32 -lshell32 -ladvapi32 -ldwmapi -lshcore -lole32 -loleaut32 -luuid -loleacc
 if errorlevel 1 goto :errore
 copy /y "build\SnapTile.exe" "SnapTile.exe" >nul
 if errorlevel 1 goto :errore
@@ -22,7 +22,7 @@ if /i "%~1"=="prova" goto :prova
 popd
 exit /b 0
 :prova
-"%GCCBIN%\gcc.exe" -std=c11 -Os -Wall -Wextra -Wpedantic -D_WIN32_WINNT=0x0A00 -DUNICODE -D_UNICODE -o build\prova.exe verifica\prova.c src\geometria.c src\finestre.c src\avvio.c -lgdi32 -lshell32 -ladvapi32 -ldwmapi -lshcore
+"%GCCBIN%\gcc.exe" -std=c11 -Os -Wall -Wextra -Wpedantic -D_WIN32_WINNT=0x0A00 -DUNICODE -D_UNICODE -o build\prova.exe verifica\prova.c src\geometria.c src\finestre.c src\accessibilita.c src\avvio.c -lgdi32 -lshell32 -ladvapi32 -ldwmapi -lshcore -lole32 -loleaut32 -luuid -loleacc
 if errorlevel 1 goto :errore
 "build\prova.exe"
 if errorlevel 1 goto :errore

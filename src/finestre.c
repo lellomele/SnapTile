@@ -45,19 +45,19 @@ BOOL ancora_valida(Finestra f)
            GetWindowThreadProcessId(f.hwnd, &pid) == f.thread && pid == f.processo;
 }
 
-BOOL pulsante_ingrandisci(HWND hwnd, POINT p, RECT *pulsante)
+enum TipoPulsante esamina_pulsante(HWND hwnd, POINT p, RECT *pulsante)
 {
     RECT r;
     if (!(GetWindowLongPtrW(hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) ||
         !GetWindowRect(hwnd, &r) || p.y < r.top || p.y > r.top + 200)
-        return FALSE;
+        return NESSUN_PULSANTE;
     int dpi = dpi_monitor(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
-    if (p.y > r.top + MulDiv(76, dpi, 96)) return FALSE;
+    if (p.y > r.top + MulDiv(76, dpi, 96)) return NESSUN_PULSANTE;
 
     DWORD_PTR hit = 0;
     UINT flags = SMTO_ABORTIFHUNG | SMTO_BLOCK | SMTO_ERRORONEXIT;
     if (!SendMessageTimeoutW(hwnd, WM_NCHITTEST, 0, MAKELPARAM(p.x, p.y),
-                             flags, 35, &hit)) return FALSE;
+                             flags, 35, &hit)) return NESSUN_PULSANTE;
     TITLEBARINFOEX info = {.cbSize = sizeof(info)};
     if (SendMessageTimeoutW(hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info,
                             flags, 35, NULL) &&
@@ -66,12 +66,53 @@ BOOL pulsante_ingrandisci(HWND hwnd, POINT p, RECT *pulsante)
         PtInRect(&info.rgrect[3], p) &&
         (hit == HTMAXBUTTON || hit == HTCAPTION || hit == HTCLIENT)) {
         *pulsante = info.rgrect[3];
-        return TRUE;
+        return PULSANTE_NATIVO;
     }
-    if (hit != HTMAXBUTTON) return FALSE;
-    int dx = MulDiv(16, dpi, 96), dy = MulDiv(12, dpi, 96);
-    SetRect(pulsante, p.x - dx, p.y - dy, p.x + dx, p.y + dy);
-    return TRUE;
+    if (hit == HTMAXBUTTON) {
+        int dx = MulDiv(16, dpi, 96), dy = MulDiv(12, dpi, 96);
+        SetRect(pulsante, p.x - dx, p.y - dy, p.x + dx, p.y + dy);
+        return PULSANTE_NATIVO;
+    }
+    if ((hit != HTCLIENT && hit != HTCAPTION) || (info.rgstate[3] & STATE_SYSTEM_UNAVAILABLE) ||
+        (!IsRectEmpty(&info.rgrect[3]) && !(info.rgstate[3] & (STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_OFFSCREEN))))
+        return NESSUN_PULSANTE;
+
+    LONG distanza = (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_LAYOUTRTL) ? p.x-r.left : r.right-p.x;
+    if (!PtInRect(&r, p) || distanza > MulDiv(180, dpi, 96) ||
+        p.y-r.top > MulDiv(52, dpi, 96)) return NESSUN_PULSANTE;
+    /* Solo tolleranza per la sosta. Il worker determina il rettangolo effettivo. */
+    int delta = MulDiv(3, dpi, 96);
+    SetRect(pulsante, p.x-delta, p.y-delta, p.x+delta+1, p.y+delta+1);
+    return DA_VERIFICARE;
+}
+
+/* Ultima risorsa sul worker, solo se l'accessibilita' ha visto l'intera finestra. */
+void stima_pulsante_dwm(HWND hwnd, RECT finestra, POINT p, RECT *pulsante)
+{
+    SetRectEmpty(pulsante);
+    LONG_PTR stile = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    LONG_PTR esteso = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    const DWORD comandi = WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+    if ((stile & comandi) != comandi || (esteso & WS_EX_CONTEXTHELP) || !IsWindowEnabled(hwnd)) return;
+    RECT gruppo = {0};
+    if (FAILED(DwmGetWindowAttribute(hwnd, DWMWA_CAPTION_BUTTON_BOUNDS, &gruppo, sizeof(gruppo)))) return;
+    int dpi = dpi_monitor(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
+    RECT centro = centro_pulsanti_dwm(finestra, gruppo, dpi, (esteso & WS_EX_LAYOUTRTL) != 0);
+    if (!PtInRect(&centro, p)) return;
+
+    TITLEBARINFOEX info = {.cbSize = sizeof(info)};
+    if (!SendMessageTimeoutW(hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info,
+                             SMTO_ABORTIFHUNG | SMTO_BLOCK | SMTO_ERRORONEXIT, 35, NULL)) return;
+    if (info.rgstate[3] & STATE_SYSTEM_UNAVAILABLE) return;
+    for (int i = 2; i <= 5; ++i)
+        if (i != 3 && !(info.rgstate[i] & (STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_OFFSCREEN)) &&
+            PtInRect(&info.rgrect[i], p)) return;
+    HMENU menu = GetSystemMenu(hwnd, FALSE);
+    if (menu) {
+        UINT stato = GetMenuState(menu, IsZoomed(hwnd) ? SC_RESTORE : SC_MAXIMIZE, MF_BYCOMMAND);
+        if (stato != (UINT)-1 && (stato & (MF_DISABLED | MF_GRAYED))) return;
+    }
+    *pulsante = centro;
 }
 
 /* DWM esclude i bordi invisibili. SetWindowPos li include. Dopo un ripristino

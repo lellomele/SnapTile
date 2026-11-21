@@ -1,11 +1,13 @@
-# SnapTile 1.1
+# SnapTile 1.2.0
 
-[English](#english) · [Italiano](#italiano) · [Release v1.1.0](https://github.com/lellomele/SnapTile/releases/tag/v1.1.0)
+**[Release v1.2.0](https://github.com/lellomele/SnapTile/releases/tag/v1.2.0)** · [Download SnapTile.exe (Windows x64)](https://github.com/lellomele/SnapTile/releases/download/v1.2.0/SnapTile.exe)
+
+[English](#english) · [Italiano](#italiano)
 
 ## English
 Portable x64 window tiling utility for Windows 10. Copyright © 2026 Raffaele Mele.
 
-Run SnapTile.exe. Hover over the Maximize or Restore button and click a zone. Shift-click to fill the remaining zones with other windows on the same monitor. With three or more eligible windows, the top row shows suggested groups.
+Download and run **SnapTile.exe**. Hover over the Maximize or Restore button and click a zone. Shift-click to fill the remaining zones with other windows on the same monitor. With three or more eligible windows, the top row shows suggested groups.
 
 Press Ctrl+Alt+Z to open layouts from the keyboard. Use Tab or the arrows, Enter to apply and Esc to dismiss. Right-click the notification area icon for startup settings, the quick guide, copyright information and Exit.
 
@@ -15,7 +17,7 @@ Run build.cmd to compile with MinGW-w64. Run build.cmd prova to include regressi
 
 ## Italiano
 
-SnapTile è una utility portatile x64 per affiancare le finestre su Windows 10. Scarica il pacchetto dalla [release v1.1.0](https://github.com/lellomele/SnapTile/releases/tag/v1.1.0), estrailo e avvia **SnapTile.exe**.
+SnapTile è una utility portatile x64 per affiancare le finestre su Windows 10. Scarica e avvia **SnapTile.exe**.
 
 Ferma il puntatore sul pulsante Ingrandisci/Ripristina e fai clic su una zona. Con **Maiusc + clic** riempi anche le altre zone con le finestre aperte sullo stesso monitor. Con almeno tre finestre idonee compaiono due combinazioni suggerite.
 

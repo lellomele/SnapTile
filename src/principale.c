@@ -385,7 +385,8 @@ static void controlla_mouse(void)
     attendi_uscita = FALSE;
     HWND hwnd = GetAncestor(WindowFromPoint(p), GA_ROOT);
     RECT button;
-    if (!hwnd || !idonea(hwnd) || !pulsante_ingrandisci(hwnd, p, &button)) {
+    enum TipoPulsante tipo = idonea(hwnd) ? esamina_pulsante(hwnd, p, &button) : NESSUN_PULSANTE;
+    if (tipo == NESSUN_PULSANTE) {
         osservata = NULL;
         return;
     }
@@ -394,8 +395,10 @@ static void controlla_mouse(void)
         pulsante_osservato = button;
         osservata_da = ora;
     } else if (ora - osservata_da >= 400) {
+        if (tipo == DA_VERIFICARE && !verifica_pulsante_pronta(identifica(hwnd), p, osservata_da, &button))
+            return;
         osservata = NULL;
-        apri_pannello(hwnd, button, FALSE);
+        if (PtInRect(&button, p)) apri_pannello(hwnd, button, FALSE);
     }
 }
 

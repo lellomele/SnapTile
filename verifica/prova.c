@@ -59,6 +59,48 @@ static LRESULT CALLBACK prova_proc(HWND h, UINT m, WPARAM w, LPARAM l)
     return DefWindowProcW(h, m, w, l);
 }
 
+static LRESULT CALLBACK barra_proc(HWND h, UINT msg, WPARAM w, LPARAM l)
+{
+    LONG_PTR hit = GetWindowLongPtrW(h, GWLP_USERDATA);
+    if (msg == WM_NCHITTEST) return hit;
+    if (msg == WM_GETTITLEBARINFOEX) {
+        TITLEBARINFOEX *info = (TITLEBARINFOEX *)l;
+        SetRectEmpty(&info->rgrect[3]);
+        info->rgstate[3] = hit == HTCAPTION ? STATE_SYSTEM_INVISIBLE : 0;
+        return 0;
+    }
+    return DefWindowProcW(h, msg, w, l);
+}
+
+static void prova_barra(int hit)
+{
+    HINSTANCE istanza = GetModuleHandleW(NULL);
+    WNDCLASSW wc = {.lpfnWndProc=barra_proc, .hInstance=istanza, .lpszClassName=L"SnapTile.Test.Barra"};
+    ATOM frame = RegisterClassW(&wc);
+    HWND h = frame ? CreateWindowW(MAKEINTATOM(frame), L"", WS_OVERLAPPEDWINDOW, 20, 20, 720, 500,
+                                   NULL, NULL, istanza, NULL) : NULL;
+    BOOL ok = FALSE;
+    RECT r, ancora;
+    if (h && GetWindowRect(h, &r)) {
+        int dpi = dpi_monitor(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST));
+        POINT p = {r.right-MulDiv(72, dpi, 96), r.top+MulDiv(18, dpi, 96)};
+        SetWindowLongPtrW(h, GWLP_USERDATA, hit);
+        ok = esamina_pulsante(h, p, &ancora)==DA_VERIFICARE && PtInRect(&ancora, p);
+        POINT contenuto = {p.x, r.top+MulDiv(90, dpi, 96)};
+        POINT fuori_angolo = {r.right-MulDiv(220, dpi, 96), p.y};
+        ok = ok && esamina_pulsante(h, contenuto, &ancora)==NESSUN_PULSANTE &&
+             esamina_pulsante(h, fuori_angolo, &ancora)==NESSUN_PULSANTE;
+        SetWindowLongPtrW(h, GWLP_USERDATA, HTCLOSE);
+        ok = ok && esamina_pulsante(h, p, &ancora)==NESSUN_PULSANTE;
+        SetWindowLongPtrW(h, GWLP_USERDATA, HTMAXBUTTON);
+        ok = ok && esamina_pulsante(h, p, &ancora)==PULSANTE_NATIVO;
+    }
+    if (h) DestroyWindow(h);
+    if (frame) UnregisterClassW(MAKEINTATOM(frame), istanza);
+    controlla(ok, hit == HTCLIENT ? "Custom frame: client hit and empty maximize bounds" :
+                                    "Custom frame: caption hit and invisible native maximize button");
+}
+
 static int crea_finestre(void)
 {
     WNDCLASSW wc = {.lpfnWndProc=prova_proc, .hInstance=GetModuleHandleW(NULL),
@@ -135,6 +177,35 @@ static void geometrie(void)
     controlla(ok,"Four layouts, negative coordinates and odd resolutions");
 }
 
+static void prova_gruppo_dwm(void)
+{
+    RECT finestra = {76,81,1854,1195}, gruppo = {1508,0,1767,51};
+    RECT centro = centro_pulsanti_dwm(finestra, gruppo, 168, FALSE);
+    controlla(PtInRect(&centro, (POINT){1716,114}) &&
+              !PtInRect(&centro, (POINT){1627,114}) && !PtInRect(&centro, (POINT){1800,114}) &&
+              !PtInRect(&centro, (POINT){1716,145}), "Reported hover point and adjacent caption buttons");
+
+    OffsetRect(&finestra, -2500, -100);
+    centro = centro_pulsanti_dwm(finestra, gruppo, 168, FALSE);
+    BOOL ok = PtInRect(&centro, (POINT){-784,14});
+    RECT speculare = {11,0,270,51};
+    centro = centro_pulsanti_dwm(finestra, speculare, 168, TRUE);
+    ok = ok && PtInRect(&centro, (POINT){-2283,14});
+    centro = centro_pulsanti_dwm(finestra, speculare, 168, FALSE);
+    controlla(ok && IsRectEmpty(&centro), "Caption group on a negative-coordinate monitor and mirrored frame");
+
+    RECT normale = {0,0,1200,800}, standard = {1055,0,1193,30};
+    centro = centro_pulsanti_dwm(normale, standard, 96, FALSE);
+    ok = PtInRect(&centro, (POINT){1124,16});
+    const RECT anomali[] = {{0,0,0,0}, {900,0,1000,30}, {1055,70,1193,100},
+                            {600,0,1193,30}, {1170,0,1193,30}, {1062,0,1201,30}};
+    for (unsigned i = 0; i < ARRAYSIZE(anomali); ++i) {
+        centro = centro_pulsanti_dwm(normale, anomali[i], 96, FALSE);
+        ok = ok && IsRectEmpty(&centro);
+    }
+    controlla(ok, "96 DPI caption group and rejection of unusable bounds");
+}
+
 static void prova_avvio(void)
 {
     WCHAR nome[100];
@@ -170,6 +241,7 @@ int main(int argc, char **argv)
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     if (argc>1 && !lstrcmpA(argv[1],"--finestre")) return crea_finestre();
     geometrie();
+    prova_gruppo_dwm();
     prova_avvio();
     WCHAR nome_desktop[80], exe[MAX_PATH], arg[]=L"prova.exe --finestre";
     wsprintfW(nome_desktop,L"SnapTileTest%lu",GetCurrentProcessId());
@@ -182,6 +254,8 @@ int main(int argc, char **argv)
         desk=NULL;
         puts("Using current desktop with test windows isolated by process ID.");
     }
+    prova_barra(HTCLIENT);
+    prova_barra(HTCAPTION);
     GetModuleFileNameW(NULL,exe,MAX_PATH);
     PROCESS_INFORMATION pi={0};
     if (!avvia_figlio(exe,arg,desk ? nome_desktop : NULL,&pi)) {
@@ -218,7 +292,8 @@ int main(int argc, char **argv)
     SendMessageW(a,WM_GETTITLEBARINFOEX,0,(LPARAM)&tb);
     RECT t=tb.rgrect[3], rilevato;
     POINT p={(t.left+t.right)/2,(t.top+t.bottom)/2};
-    controlla(!IsRectEmpty(&t) && pulsante_ingrandisci(a,p,&rilevato), "Maximize and Restore button detection");
+    controlla(!IsRectEmpty(&t) && esamina_pulsante(a,p,&rilevato) == PULSANTE_NATIVO,
+              "Maximize and Restore button detection");
     chiudi(FALSE);
     attendi_uscita=FALSE;
     sotto_mouse=a; mouse_simulato=p;
