@@ -24,3 +24,8 @@ Premi **Ctrl + Alt + Z** per aprire gli schemi da tastiera. Usa Tab o le frecce 
 Se usavi Affianca10, disattiva il suo avvio automatico e chiudi la vecchia versione prima di avviare SnapTile.
 
 Per compilare con MinGW-w64 esegui `build.cmd`. Per includere i test esegui `build.cmd prova`. Lo script cerca il compilatore in MINGW_HOME, C:\mingw, C:\mingw64 e nel PATH.
+## License / Licenza
+
+Copyright © 2026 Raffaele Mele. SnapTile is licensed under the [GNU General Public License, version 2 only](LICENSE) (SPDX: GPL-2.0-only).
+
+SnapTile è distribuito secondo la [GNU General Public License, esclusivamente versione 2](LICENSE).
