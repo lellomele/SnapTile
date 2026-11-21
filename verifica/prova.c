@@ -101,6 +101,75 @@ static void prova_barra(int hit)
                                     "Custom frame: caption hit and invisible native maximize button");
 }
 
+/* La radice espone i vecchi rettangoli, mentre la barra figlia occupa
+   realmente i pixel dei pulsanti e risponde a WM_NCHITTEST. */
+static LRESULT CALLBACK cornice_proc(HWND h, UINT m, WPARAM w, LPARAM l)
+{
+    if (m == WM_NCCALCSIZE) return 0;
+    if (m == WM_NCHITTEST) return GetWindowLongPtrW(h, GWLP_USERDATA);
+    if (m == WM_GETTITLEBARINFOEX) {
+        TITLEBARINFOEX *t = (TITLEBARINFOEX *)l;
+        RECT r;
+        GetWindowRect(h, &r);
+        SetRect(&t->rgrect[2], r.right-130, r.top+11, r.right-89, r.top+52);
+        SetRect(&t->rgrect[3], r.right-91, r.top+11, r.right-50, r.top+52);
+        return TRUE;
+    }
+    return DefWindowProcW(h, m, w, l);
+}
+
+static void prova_hit_figlio(void)
+{
+    HINSTANCE istanza = GetModuleHandleW(NULL);
+    WNDCLASSW wc = {.lpfnWndProc=cornice_proc, .hInstance=istanza, .lpszClassName=L"SnapTile.Test.Cornice"};
+    ATOM classe = RegisterClassW(&wc);
+    HWND h = classe ? CreateWindowExW(WS_EX_TOPMOST, MAKEINTATOM(classe), L"",
+        WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX,
+        40, 40, 560, 240, NULL, NULL, istanza, NULL) : NULL;
+    if (h) {
+        SetWindowLongPtrW(h, GWLP_USERDATA, HTCAPTION);
+        ShowWindow(h, SW_SHOWNOACTIVATE);
+    }
+    HWND figlio = h ? CreateWindowW(MAKEINTATOM(classe), L"", WS_CHILD | WS_VISIBLE,
+        0, 0, 560, 64, h, NULL, istanza, NULL) : NULL;
+    BOOL riduci = FALSE, fuori = FALSE, sinistra = FALSE, client = FALSE, altro = FALSE, mdi = FALSE;
+    RECT r, ancora;
+    if (figlio && idonea(h) && GetWindowRect(h, &r)) {
+        POINT p = {r.right-129, r.top+44};
+        SetWindowLongPtrW(figlio, GWLP_USERDATA, HTMAXBUTTON);
+        riduci = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == PULSANTE_NATIVO &&
+                 PtInRect(&ancora, p);
+        p = (POINT){r.right-132, r.top+43};
+        fuori = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == PULSANTE_NATIVO &&
+                PtInRect(&ancora, p);
+        p = (POINT){r.left+40, r.top+43};
+        sinistra = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == PULSANTE_NATIVO &&
+                   PtInRect(&ancora, p);
+        SetWindowLongPtrW(h, GWLP_USERDATA, HTCLIENT);
+        p = (POINT){r.right-129, r.top+44};
+        client = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == PULSANTE_NATIVO &&
+                 PtInRect(&ancora, p);
+        SetWindowLongPtrW(h, GWLP_USERDATA, HTCAPTION);
+        p = (POINT){r.right-70, r.top+43};
+        SetWindowLongPtrW(figlio, GWLP_USERDATA, HTCLOSE);
+        altro = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == NESSUN_PULSANTE;
+        SetWindowLongPtrW(figlio, GWLP_USERDATA, HTMINBUTTON);
+        altro = altro && WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == NESSUN_PULSANTE;
+        SetWindowLongPtrW(figlio, GWL_EXSTYLE, GetWindowLongPtrW(figlio, GWL_EXSTYLE) | WS_EX_MDICHILD);
+        SetWindowLongPtrW(figlio, GWLP_USERDATA, HTMAXBUTTON);
+        p = (POINT){r.right-132, r.top+43};
+        mdi = WindowFromPoint(p) == figlio && esamina_pulsante(h, p, &ancora) == NESSUN_PULSANTE;
+    }
+    if (h) DestroyWindow(h);
+    if (classe) UnregisterClassW(MAKEINTATOM(classe), istanza);
+    controlla(riduci, "Child maximize hit inside the root's minimize rectangle");
+    controlla(fuori, "Child maximize hit outside the root's caption buttons");
+    controlla(sinistra, "Child maximize hit on the left of an LTR caption");
+    controlla(client, "Child maximize hit in the expected corner with a root client hit");
+    controlla(altro, "Child close and minimize hits inside the root's maximize rectangle");
+    controlla(mdi, "Embedded MDI maximize hit does not target the root window");
+}
+
 static int crea_finestre(void)
 {
     WNDCLASSW wc = {.lpfnWndProc=prova_proc, .hInstance=GetModuleHandleW(NULL),
@@ -256,6 +325,7 @@ int main(int argc, char **argv)
     }
     prova_barra(HTCLIENT);
     prova_barra(HTCAPTION);
+    prova_hit_figlio();
     GetModuleFileNameW(NULL,exe,MAX_PATH);
     PROCESS_INFORMATION pi={0};
     if (!avvia_figlio(exe,arg,desk ? nome_desktop : NULL,&pi)) {

@@ -45,6 +45,30 @@ BOOL ancora_valida(Finestra f)
            GetWindowThreadProcessId(f.hwnd, &pid) == f.thread && pid == f.processo;
 }
 
+/* Una barra personalizzata puo' rispondere al test sul proprio HWND mentre
+   la radice identifica solo la didascalia. Escludi finestre documento MDI
+   e cornici figlie: i loro comandi agiscono sulla finestra interna. */
+static DWORD_PTR hit_barra_figlia(HWND radice, POINT p, UINT flags)
+{
+    HWND figlio = WindowFromPoint(p);
+    if (!figlio || figlio == radice || GetAncestor(figlio, GA_ROOT) != radice ||
+        !IsWindowEnabled(radice)) return HTNOWHERE;
+    DWORD processo = 0;
+    if (!GetWindowThreadProcessId(radice, &processo)) return HTNOWHERE;
+    for (HWND h = figlio; h != radice; h = GetAncestor(h, GA_PARENT)) {
+        DWORD pid = 0;
+        if (!h || !GetWindowThreadProcessId(h, &pid) || pid != processo ||
+            !IsWindowEnabled(h)) return HTNOWHERE;
+        LONG_PTR stile = GetWindowLongPtrW(h, GWL_STYLE);
+        if (!(stile & WS_CHILD) || (stile & WS_SYSMENU) || (stile & WS_CAPTION) == WS_CAPTION ||
+            (GetWindowLongPtrW(h, GWL_EXSTYLE) & WS_EX_MDICHILD)) return HTNOWHERE;
+    }
+    DWORD_PTR hit = 0;
+    if (!SendMessageTimeoutW(figlio, WM_NCHITTEST, 0, MAKELPARAM(p.x, p.y),
+                             flags, 35, &hit)) return HTNOWHERE;
+    return hit;
+}
+
 enum TipoPulsante esamina_pulsante(HWND hwnd, POINT p, RECT *pulsante)
 {
     RECT r;
@@ -59,8 +83,26 @@ enum TipoPulsante esamina_pulsante(HWND hwnd, POINT p, RECT *pulsante)
     if (!SendMessageTimeoutW(hwnd, WM_NCHITTEST, 0, MAKELPARAM(p.x, p.y),
                              flags, 35, &hit)) return NESSUN_PULSANTE;
     TITLEBARINFOEX info = {.cbSize = sizeof(info)};
-    if (SendMessageTimeoutW(hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info,
-                            flags, 35, NULL) &&
+    BOOL info_valida = SendMessageTimeoutW(hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info,
+                                           flags, 35, NULL) != 0;
+    BOOL vicino = FALSE;
+    if ((hit == HTCLIENT || hit == HTCAPTION) && PtInRect(&r, p) &&
+        p.y-r.top <= MulDiv(52, dpi, 96)) {
+        LONG distanza = (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_LAYOUTRTL) ? p.x-r.left : r.right-p.x;
+        vicino = distanza <= MulDiv(180, dpi, 96);
+        /* HTCAPTION identifica gia' la barra, anche con i comandi a sinistra.
+           Per HTCLIENT circoscrivi la ricerca all'angolo dei pulsanti. */
+        if (hit == HTCAPTION || vicino) {
+            DWORD_PTR figlio = hit_barra_figlia(hwnd, p, flags);
+            if (figlio == HTMINBUTTON || figlio == HTCLOSE || figlio == HTHELP || figlio == HTSYSMENU)
+                return NESSUN_PULSANTE;
+            if (figlio == HTMAXBUTTON) {
+                if (info.rgstate[3] & STATE_SYSTEM_UNAVAILABLE) return NESSUN_PULSANTE;
+                hit = HTMAXBUTTON;
+            }
+        }
+    }
+    if (info_valida &&
         !(info.rgstate[3] & (STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_UNAVAILABLE |
                              STATE_SYSTEM_OFFSCREEN)) &&
         PtInRect(&info.rgrect[3], p) &&
@@ -73,13 +115,10 @@ enum TipoPulsante esamina_pulsante(HWND hwnd, POINT p, RECT *pulsante)
         SetRect(pulsante, p.x - dx, p.y - dy, p.x + dx, p.y + dy);
         return PULSANTE_NATIVO;
     }
-    if ((hit != HTCLIENT && hit != HTCAPTION) || (info.rgstate[3] & STATE_SYSTEM_UNAVAILABLE) ||
+    if (!vicino || (info.rgstate[3] & STATE_SYSTEM_UNAVAILABLE) ||
         (!IsRectEmpty(&info.rgrect[3]) && !(info.rgstate[3] & (STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_OFFSCREEN))))
         return NESSUN_PULSANTE;
 
-    LONG distanza = (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_LAYOUTRTL) ? p.x-r.left : r.right-p.x;
-    if (!PtInRect(&r, p) || distanza > MulDiv(180, dpi, 96) ||
-        p.y-r.top > MulDiv(52, dpi, 96)) return NESSUN_PULSANTE;
     /* Solo tolleranza per la sosta. Il worker determina il rettangolo effettivo. */
     int delta = MulDiv(3, dpi, 96);
     SetRect(pulsante, p.x-delta, p.y-delta, p.x+delta+1, p.y+delta+1);
